@@ -20,6 +20,12 @@ format_d:   .string "%d"
 format_space:   .string "\0"
 print_pstrlen: .string "first pstring length: %d, second: %d\n"
 print_replace_char: .string "old char: %c, new char: %c, first string %s, second string %s\n"
+print_pstrijcpy: .string "length: %d, string: %s\n"
+print_swap_case: .string "length: %d, string: %s\n"
+print_compare_result: .string "compare result: %d\n"
+print_default: .string "invalid option!\n"
+print_invalid: .string "invalid input!\n"
+
 
 
 .text
@@ -77,14 +83,24 @@ main:
     movq -32(%rbp), %rdi
     leaq -544(%rbp), %rsi
     leaq -288(%rbp), %rdx
+call func_select
+add $544, %rsp
+pop %rbp
+xor %rax, %rax
+ret
+
 ##
 #HERE WE JUMP
 ##
+.globl	func_select
+	.type	func_select, @function
+func_select:
 subq $50, %rdi
+cmp $0, %rdi
+jl .Ldefault
+cmp $10, %rdi
+jg .Ldefault
 jmp *.JUMPTABLE(,%rdi,8)
-
-ret
-
 
 #### TEST
 
@@ -107,9 +123,6 @@ movq %rax, %rdx
 movq $print_pstrlen, %rdi
 xor %rax, %rax
 call printf
-xor %rax, %rax
-add $544, %rsp
-popq %rbp
 ret
 ##call the func pstrlen
 
@@ -124,8 +137,10 @@ ret
 #case 51   
 
 .Ldefault:
-
-movq $1,  %rax
+movq $print_default, %rdi
+xor %rax, %rax
+call printf
+ret
 
 #case 52   
 
@@ -134,32 +149,32 @@ movq %rsi, %rdi #moving the strings AFTER we moved to the switch-case
 movq %rdx, %rsi
 push %rbp
 movq %rsp, %rbp
-subq $24, %rsp #make room
+subq $32, %rsp #make room
 
 movq %rdi, %r13
 movq %rsi, %r14 #have to save rsi and rdi!
 
 movq $format_c, %rdi #first char
-leaq -24(%rbp), %rsi
+leaq -32(%rbp), %rsi
 xor %rax, %rax
 call scanf
 
 movq $format_c, %rdi #second char
-leaq -8(%rbp), %rsi
+leaq -16(%rbp), %rsi
 xor %rax, %rax
 call scanf
 
 movq %r13, %rdi #sending for the first time with first str
-movq -24(%rbp), %rsi
+movq -32(%rbp), %rsi
 movq %rsi, %r15
-movq -8(%rbp), %rdx
+movq -16(%rbp), %rdx
+
 #call replaceChar!!!!
 call replaceChar
 movq %rax, %rcx
 
 movq %r14, %rdi #sending for the first time with second str
-movq -16(%rbp), %rsi
-movq -8(%rbp), %rdx
+movq -16(%rbp), %rdx
 call replaceChar
 movq %rax, %r8
 
@@ -167,12 +182,12 @@ movq %rax, %r8
 movq $print_replace_char, %rdi
 xor %rax, %rax
 movq %r15, %rsi
+incq %rcx
+incq %r8
 call printf
 xor %rax, %rax
-add $24, %rsp
+add $32, %rsp
 pop %rbp
-add $544, %rsp
-popq %rbp
 ret
 
 
@@ -188,7 +203,7 @@ addq $1, %rdi
     cmpq $0, (%rdi)
     je .return
     
-    cmpb %sil, %dil #checking if the char in rsi is equel to current char in rdi
+    cmpb (%rdi), %sil #checking if the char in rsi is equel to current char in rdi
     je .switch
     addq $1, %rdi
     jmp .for
@@ -207,27 +222,85 @@ movq %rsi, %rdi #moving the strings AFTER we moved to the switch-case
 movq %rdx, %rsi
 push %rbp
 movq %rsp, %rbp
-subq $24, %rsp #make room
+subq $32, %rsp #make room
 
 movq %rdi, %r13
 movq %rsi, %r14 #have to save rsi and rdi!
 
 movq $format_d, %rdi #first num
-leaq -24(%rbp), %rsi
+leaq -32(%rbp), %rsi
 xor %rax, %rax
 call scanf
 
 movq $format_d, %rdi #second num
-leaq -8(%rbp), %rsi
+leaq -16(%rbp), %rsi
 xor %rax, %rax
 call scanf
 movq %r13, %rdi
 movq %r14, %rsi
-movq -24(%rbp), %rdx
-movq -8(%rbp), %rcx
+movq -16(%rbp), %rcx
+movq -32(%rbp), %rdx
+
+# check if indexes are OK
+cmp $0, %rsi
+jl .badI3
+cmp $0, %rdx
+jl .badI3
+cmpb (%rdi), %sil
+jg .badI3
+cmpb (%rdi), %dl
+jg .badI3
+
+
+call pstrijcpy
+movq %rax, %rdx
+movq $print_pstrijcpy, %rdi
+movq $0, %rsi
+movb (%rax), %sil
+xor %rax, %rax
+addq $1, %rdx
+call printf
+movq $print_pstrijcpy, %rdi
+movq $0, %rsi
+movq %r14, %rdx
+movb (%rdx), %sil
+xor %rax, %rax
+addq $1, %rdx
+call printf
+
+#clearing the stack
+add $32, %rsp
+pop %rbp
+ret
+
+.badI3:
+    movq $print_invalid, %rdi
+    call printf
+    movq $print_pstrijcpy, %rdi    
+    movq %r13, %rdx
+    movq $0, %rsi
+    movb (%rdx), %sil
+    xor %rax, %rax
+    add $1, %rdx
+    call printf  
+    movq $print_pstrijcpy, %rdi    
+    movq %r14, %rdx
+    movq $0, %rsi
+    movb (%rdx), %sil
+    xor %rax, %rax
+    add $1, %rdx
+    call printf      
+    #clearing the stack
+    add $32, %rsp
+    pop %rbp
+    ret
+
 
 #### call the function pstrijcpy
 #### the function:
+        .globl	pstrijcpy
+	.type	pstrijcpy, @function
+pstrijcpy:
 movq %rdi, %rax #save rdi
 
 addq $1, %rdi #skip the str size
@@ -251,12 +324,33 @@ addq %rdx, %rsi
 .Lforth:
 movq %rsi, %rdi #moving the strings AFTER we moved to the switch-case
 movq %rdx, %rsi
-jmp .swapCase #to the func
+movq %rsi, %r15
+call swapCase
+movq $print_swap_case, %rdi
+movq $0, %rsi
+movb (%rax), %sil
+movq %rax, %rdx
+xor %rax, %rax
+add $1, %rdx
+call printf
+
 #call Func
-movq %rsi, %rdi
+movq %r15, %rdi
+call swapCase
+movq $print_swap_case, %rdi
+movq $0, %rsi
+movb (%rax), %sil
+movq %rax, %rdx
+xor %rax, %rax
+add $1, %rdx
+call printf
+ret
+
 ### CALL THE FUNCTION swapCase
 #the func:
-.swapCase:
+        .globl	swapCase
+	.type	swapCase, @function
+swapCase:
 movq %rdi, %rax #save rdi
 addq $1, %rdi
 .forForth:
@@ -300,27 +394,63 @@ movq %rsi, %rdi #moving the strings AFTER we moved to the switch-case
 movq %rdx, %rsi
 push %rbp
 movq %rsp, %rbp
-subq $24, %rsp #make room
+subq $32, %rsp #make room
 
 movq %rdi, %r13
 movq %rsi, %r14 #have to save rsi and rdi!
 
 movq $format_d, %rdi #first num
-leaq -24(%rbp), %rsi
+leaq -32(%rbp), %rsi
 xor %rax, %rax
 call scanf
 
 movq $format_d, %rdi #second num
-leaq -8(%rbp), %rsi
+leaq -16(%rbp), %rsi
 xor %rax, %rax
 call scanf
 movq %r13, %rdi
 movq %r14, %rsi
-movq -24(%rbp), %rdx
-movq -8(%rbp), %rcx
+movq -32(%rbp), %rdx
+movq -16(%rbp), %rcx
+
+# check if indexes are OK
+cmp $0, %rsi
+jl .badI5
+cmp $0, %rdx
+jl .badI5
+cmpb (%rdi), %sil
+jg .badI5
+cmpb (%rdi), %dl
+jg .badI5
+
+call pstrijcmp
+movq $print_compare_result, %rdi
+movq %rax, %rsi
+xor %rax, %rax
+call printf
+
+add $32, %rsp
+pop %rbp
+ret
+
+.badI5:
+    movq $print_invalid, %rdi
+    movq $0, %rax
+    call printf
+    movq $print_compare_result, %rdi
+    movq $-2, %rsi
+    movq $0, %rax
+    call printf
+    #clearing the stack
+    add $32, %rsp
+    pop %rbp
+    ret
 
 ### CAL THE FUNC pstrijcmp
 ##the func:
+.globl	pstrijcmp
+	.type	pstrijcmp, @function
+pstrijcmp:
 movq %rdi, %rax #save rdi
 
 addq $1, %rdi #skip the str size
@@ -330,6 +460,7 @@ addq %rdx, %rsi
 
 .whileFifth:
     cmpq %rcx, %rdx
+    movq $0, %rax
     jg .return
     movq (%rdi), %r15
     cmpq %r15, (%rsi)
@@ -347,6 +478,7 @@ addq %rdx, %rsi
     ret
 .less:
     movq $-1, %rax
+    ret
 
     
 
